@@ -12,10 +12,11 @@ type WriterOptions struct {
 }
 
 type Writer struct {
-	buf          []byte
-	pos          int
-	maxSize      int
-	allocateSize int
+	buf             []byte
+	pos             int
+	maxSize         int
+	allocateSize    int
+	containerBudget int
 }
 
 func NewWriter(opts *WriterOptions) *Writer {
@@ -33,7 +34,12 @@ func NewWriter(opts *WriterOptions) *Writer {
 			alloc = opts.AllocateSize
 		}
 	}
-	return &Writer{buf: make([]byte, initial), maxSize: maxSize, allocateSize: alloc}
+	return &Writer{
+		buf:             make([]byte, initial),
+		maxSize:         maxSize,
+		allocateSize:    alloc,
+		containerBudget: MaxContainerDepth,
+	}
 }
 
 func (w *Writer) ensure(n int) error {
@@ -68,6 +74,18 @@ func maxInt(a, b int) int {
 func (w *Writer) Shift(bytes int) *Writer {
 	w.pos += bytes
 	return w
+}
+
+func (w *Writer) enterContainer() error {
+	if w.containerBudget == 0 {
+		return fmt.Errorf("bcs: exceeded max container depth")
+	}
+	w.containerBudget--
+	return nil
+}
+
+func (w *Writer) exitContainer() {
+	w.containerBudget++
 }
 
 func (w *Writer) Write8(v uint8) error {
@@ -128,6 +146,9 @@ func (w *Writer) WriteULEB(v uint64) error {
 }
 
 func (w *Writer) WriteVec(vec []any, cb func(*Writer, any, int, int) error) error {
+	if len(vec) > MaxSequenceLength {
+		return fmt.Errorf("sequence length %d exceeds limit %d", len(vec), MaxSequenceLength)
+	}
 	if err := w.WriteULEB(uint64(len(vec))); err != nil {
 		return err
 	}

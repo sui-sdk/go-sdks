@@ -172,6 +172,7 @@ func main() {
 Current tests cover:
 
 - `bcs`: ULEB/base58/struct-enum-vector-map roundtrip
+- `bcs`: Rust-official-style JSON vector compatibility tests (`bcs/testdata/rust_official_vectors.json`)
 - `sui/jsonrpc`: transport + client method path
 - `sui/graphql`: query + named execute
 - `sui/faucet`: success + 429 handling

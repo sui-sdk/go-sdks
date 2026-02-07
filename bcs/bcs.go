@@ -14,6 +14,12 @@ type Option struct {
 	Validate func(any) error
 }
 
+const (
+	// Matches Rust bcs crate limits.
+	MaxSequenceLength = 1<<31 - 1
+	MaxContainerDepth = 500
+)
+
 type Field struct {
 	Name string
 	Type *Type
@@ -25,9 +31,9 @@ func CompareBCSBytes(a, b []byte) int {
 
 func fixedSizeType(name string, size int, read func(*Reader) (any, error), write func(any, *Writer) error, validate func(any) error) *Type {
 	return &Type{
-		Name: name,
-		Read: read,
-		Write: write,
+		Name:           name,
+		Read:           read,
+		Write:          write,
 		SerializedSize: func(any) (int, bool) { return size, true },
 		Validate:       validate,
 	}
@@ -161,7 +167,19 @@ func (bcsBuilder) Bool(opts ...Option) *Type {
 	op := pickOption(opts)
 	name := coalesce(op.Name, "bool")
 	return fixedSizeType(name, 1,
-		func(r *Reader) (any, error) { v, e := r.Read8(); return v == 1, e },
+		func(r *Reader) (any, error) {
+			v, e := r.Read8()
+			if e != nil {
+				return nil, e
+			}
+			if v == 0 {
+				return false, nil
+			}
+			if v == 1 {
+				return true, nil
+			}
+			return nil, fmt.Errorf("invalid bool byte: %d", v)
+		},
 		func(v any, w *Writer) error {
 			b, ok := v.(bool)
 			if !ok {
@@ -224,12 +242,18 @@ func (bcsBuilder) ByteVector(opts ...Option) *Type {
 			if err != nil {
 				return nil, err
 			}
+			if ln > MaxSequenceLength {
+				return nil, fmt.Errorf("sequence length %d exceeds limit %d", ln, MaxSequenceLength)
+			}
 			return r.ReadBytes(int(ln))
 		},
 		func(v any, w *Writer) error {
 			bs, err := asBytes(v)
 			if err != nil {
 				return err
+			}
+			if len(bs) > MaxSequenceLength {
+				return fmt.Errorf("sequence length %d exceeds limit %d", len(bs), MaxSequenceLength)
 			}
 			if err := w.WriteULEB(uint64(len(bs))); err != nil {
 				return err
@@ -256,6 +280,9 @@ func (bcsBuilder) String(opts ...Option) *Type {
 			if err != nil {
 				return nil, err
 			}
+			if ln > MaxSequenceLength {
+				return nil, fmt.Errorf("sequence length %d exceeds limit %d", ln, MaxSequenceLength)
+			}
 			b, err := r.ReadBytes(int(ln))
 			if err != nil {
 				return nil, err
@@ -271,6 +298,9 @@ func (bcsBuilder) String(opts ...Option) *Type {
 				return fmt.Errorf("invalid %s value: %v", name, v)
 			}
 			bs := []byte(s)
+			if len(bs) > MaxSequenceLength {
+				return fmt.Errorf("sequence length %d exceeds limit %d", len(bs), MaxSequenceLength)
+			}
 			if err := w.WriteULEB(uint64(len(bs))); err != nil {
 				return err
 			}
@@ -361,6 +391,9 @@ func (bcsBuilder) Vector(t *Type, opts ...Option) *Type {
 			if err != nil {
 				return nil, err
 			}
+			if ln > MaxSequenceLength {
+				return nil, fmt.Errorf("sequence length %d exceeds limit %d", ln, MaxSequenceLength)
+			}
 			res := make([]any, 0, ln)
 			for i := 0; i < int(ln); i++ {
 				v, err := t.Read(r)
@@ -375,6 +408,9 @@ func (bcsBuilder) Vector(t *Type, opts ...Option) *Type {
 			arr, err := asAnySlice(v)
 			if err != nil {
 				return err
+			}
+			if len(arr) > MaxSequenceLength {
+				return fmt.Errorf("sequence length %d exceeds limit %d", len(arr), MaxSequenceLength)
 			}
 			if err := w.WriteULEB(uint64(len(arr))); err != nil {
 				return err
@@ -469,6 +505,10 @@ func (bcsBuilder) Struct(name string, fields []Field, opts ...Option) *Type {
 	}
 	return dynamicType(name,
 		func(r *Reader) (any, error) {
+			if err := r.enterContainer(); err != nil {
+				return nil, err
+			}
+			defer r.exitContainer()
 			res := make(map[string]any, len(fields))
 			for _, f := range fields {
 				v, err := f.Type.Read(r)
@@ -480,6 +520,10 @@ func (bcsBuilder) Struct(name string, fields []Field, opts ...Option) *Type {
 			return res, nil
 		},
 		func(v any, w *Writer) error {
+			if err := w.enterContainer(); err != nil {
+				return err
+			}
+			defer w.exitContainer()
 			m, ok := v.(map[string]any)
 			if !ok {
 				return fmt.Errorf("expected object for struct %s", name)
@@ -521,6 +565,10 @@ func (bcsBuilder) Enum(name string, fields []Field, opts ...Option) *Type {
 	}
 	return dynamicType(name,
 		func(r *Reader) (any, error) {
+			if err := r.enterContainer(); err != nil {
+				return nil, err
+			}
+			defer r.exitContainer()
 			i, err := r.ReadULEB()
 			if err != nil {
 				return nil, err
@@ -542,6 +590,10 @@ func (bcsBuilder) Enum(name string, fields []Field, opts ...Option) *Type {
 			return res, nil
 		},
 		func(v any, w *Writer) error {
+			if err := w.enterContainer(); err != nil {
+				return err
+			}
+			defer w.exitContainer()
 			m, ok := v.(map[string]any)
 			if !ok {
 				return fmt.Errorf("expected enum object for %s", name)
@@ -612,12 +664,25 @@ func (bcsBuilder) Map(keyType, valueType *Type) *Type {
 			if err != nil {
 				return nil, err
 			}
+			if ln > MaxSequenceLength {
+				return nil, fmt.Errorf("sequence length %d exceeds limit %d", ln, MaxSequenceLength)
+			}
 			out := make([][2]any, 0, ln)
+			var prev []byte
 			for i := 0; i < int(ln); i++ {
 				k, err := keyType.Read(r)
 				if err != nil {
 					return nil, err
 				}
+				sk, err := keyType.Serialize(k, nil)
+				if err != nil {
+					return nil, err
+				}
+				keyBytes := sk.ToBytes()
+				if i > 0 && CompareBCSBytes(prev, keyBytes) >= 0 {
+					return nil, fmt.Errorf("map keys are not strictly increasing at index %d", i)
+				}
+				prev = keyBytes
 				v, err := valueType.Read(r)
 				if err != nil {
 					return nil, err
@@ -630,6 +695,9 @@ func (bcsBuilder) Map(keyType, valueType *Type) *Type {
 			entries, err := asEntries(v)
 			if err != nil {
 				return err
+			}
+			if len(entries) > MaxSequenceLength {
+				return fmt.Errorf("sequence length %d exceeds limit %d", len(entries), MaxSequenceLength)
 			}
 			type kv struct {
 				k  []byte
@@ -691,9 +759,9 @@ func (bcsBuilder) Lazy(cb func() *Type) *Type {
 		return cached
 	}
 	return &Type{
-		Name: "lazy",
-		Read: func(r *Reader) (any, error) { return get().Read(r) },
-		Write: func(v any, w *Writer) error { return get().Write(v, w) },
+		Name:           "lazy",
+		Read:           func(r *Reader) (any, error) { return get().Read(r) },
+		Write:          func(v any, w *Writer) error { return get().Write(v, w) },
 		SerializedSize: func(v any) (int, bool) { return get().SerializedSize(v) },
 		Validate: func(v any) error {
 			if get().Validate != nil {

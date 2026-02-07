@@ -39,7 +39,15 @@ func (t *Type) Parse(bytes []byte) (any, error) {
 	if t.Read == nil {
 		return nil, fmt.Errorf("bcs type %s has no reader", t.Name)
 	}
-	return t.Read(NewReader(bytes))
+	reader := NewReader(bytes)
+	v, err := t.Read(reader)
+	if err != nil {
+		return nil, err
+	}
+	if reader.Remaining() != 0 {
+		return nil, fmt.Errorf("bcs type %s: trailing bytes (%d)", t.Name, reader.Remaining())
+	}
+	return v, nil
 }
 
 func (t *Type) FromHex(hex string) (any, error) {
@@ -138,7 +146,7 @@ func (s *Serialized) ToBytes() []byte {
 	return out
 }
 
-func (s *Serialized) ToHex() (string, error) { return EncodeStr(s.bytes, EncodingHex) }
+func (s *Serialized) ToHex() (string, error)    { return EncodeStr(s.bytes, EncodingHex) }
 func (s *Serialized) ToBase64() (string, error) { return EncodeStr(s.bytes, EncodingBase64) }
 func (s *Serialized) ToBase58() (string, error) { return EncodeStr(s.bytes, EncodingBase58) }
 

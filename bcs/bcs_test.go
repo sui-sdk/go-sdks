@@ -1,6 +1,7 @@
 package bcs
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -18,6 +19,20 @@ func TestULEBRoundTrip(t *testing.T) {
 		if n != len(enc) {
 			t.Fatalf("expected consumed %d got %d", len(enc), n)
 		}
+	}
+}
+
+func TestULEBRejectsNonCanonicalAndOverflow(t *testing.T) {
+	_, _, err := ULEBDecode([]byte{0x80, 0x00})
+	if err == nil {
+		t.Fatalf("expected non-canonical uleb decode error")
+	}
+
+	// 2^32 encoded in ULEB128 exceeds BCS u32 limit.
+	tooLarge := ULEBEncode(uint64(1) << 32)
+	_, _, err = ULEBDecode(tooLarge)
+	if err == nil {
+		t.Fatalf("expected u32 overflow decode error")
 	}
 }
 
@@ -68,5 +83,88 @@ func TestBCSStructEnumVectorMap(t *testing.T) {
 	}
 	if len(mapSer.ToBytes()) == 0 {
 		t.Fatalf("expected bytes")
+	}
+}
+
+func TestBoolParseRejectsNonCanonicalByte(t *testing.T) {
+	_, err := BCS.Bool().Parse([]byte{2})
+	if err == nil {
+		t.Fatalf("expected bool parse error for byte 2")
+	}
+}
+
+func TestParseRejectsTrailingBytes(t *testing.T) {
+	_, err := BCS.U8().Parse([]byte{1, 2})
+	if err == nil {
+		t.Fatalf("expected trailing bytes parse error")
+	}
+}
+
+func TestMapParseRejectsUnsortedKeys(t *testing.T) {
+	mapType := BCS.Map(BCS.String(), BCS.U8())
+	// len=2, first key "b", second key "a" (unsorted).
+	invalid := []byte{
+		0x02,
+		0x01, 'b', 0x01,
+		0x01, 'a', 0x02,
+	}
+	_, err := mapType.Parse(invalid)
+	if err == nil {
+		t.Fatalf("expected map parse error for unsorted keys")
+	}
+}
+
+func TestSequenceLengthLimitEnforced(t *testing.T) {
+	byteVector := BCS.ByteVector()
+	tooLong := uint64(MaxSequenceLength) + 1
+	input := ULEBEncode(tooLong)
+	_, err := byteVector.Parse(input)
+	if err == nil {
+		t.Fatalf("expected sequence length limit error")
+	}
+}
+
+func TestContainerDepthLimitEnforced(t *testing.T) {
+	var node *Type
+	node = BCS.Enum("Node", []Field{
+		{Name: "Leaf", Type: nil},
+		{Name: "Child", Type: BCS.Lazy(func() *Type { return node })},
+	})
+
+	v := map[string]any{"$kind": "Leaf", "Leaf": true}
+	for i := 0; i < MaxContainerDepth+1; i++ {
+		v = map[string]any{"$kind": "Child", "Child": v}
+	}
+
+	_, err := node.Serialize(v, nil)
+	if err == nil {
+		t.Fatalf("expected container depth error")
+	}
+	if got := err.Error(); got == "" {
+		t.Fatalf("expected non-empty error")
+	}
+}
+
+func TestMapParseRejectsDuplicateKeys(t *testing.T) {
+	mapType := BCS.Map(BCS.String(), BCS.U8())
+	// len=2, key "a" twice (not strictly increasing).
+	invalid := []byte{
+		0x02,
+		0x01, 'a', 0x01,
+		0x01, 'a', 0x02,
+	}
+	_, err := mapType.Parse(invalid)
+	if err == nil {
+		t.Fatalf("expected map parse error for duplicate keys")
+	}
+}
+
+func TestULEBDecodeErrorMessages(t *testing.T) {
+	_, _, err := ULEBDecode([]byte{})
+	if err == nil {
+		t.Fatalf("expected empty input error")
+	}
+	if err != nil && err.Error() == fmt.Sprintf("%v", nil) {
+		t.Fatalf("unexpected nil-like error")
 	}
 }

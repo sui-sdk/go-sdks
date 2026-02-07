@@ -1,0 +1,94 @@
+[
+  {
+    "id": "bool_true",
+    "kind": "type_serialize",
+    "type": "bool",
+    "value": true,
+    "hex": "01"
+  },
+  {
+    "id": "bool_false",
+    "kind": "type_serialize",
+    "type": "bool",
+    "value": false,
+    "hex": "00"
+  },
+  {
+    "id": "u16_4660",
+    "kind": "type_serialize",
+    "type": "u16",
+    "value": 4660,
+    "hex": "3412"
+  },
+  {
+    "id": "u32_305419896",
+    "kind": "type_serialize",
+    "type": "u32",
+    "value": 305419896,
+    "hex": "78563412"
+  },
+  {
+    "id": "u64_1311768467750121216",
+    "kind": "type_serialize",
+    "type": "u64",
+    "value": "1311768467750121216",
+    "hex": "00efcdab78563412"
+  },
+  {
+    "id": "uleb_1",
+    "kind": "uleb",
+    "value": 1,
+    "hex": "01"
+  },
+  {
+    "id": "uleb_128",
+    "kind": "uleb",
+    "value": 128,
+    "hex": "8001"
+  },
+  {
+    "id": "uleb_16384",
+    "kind": "uleb",
+    "value": 16384,
+    "hex": "808001"
+  },
+  {
+    "id": "uleb_2097152",
+    "kind": "uleb",
+    "value": 2097152,
+    "hex": "80808001"
+  },
+  {
+    "id": "uleb_268435456",
+    "kind": "uleb",
+    "value": 268435456,
+    "hex": "8080808001"
+  },
+  {
+    "id": "uleb_9487",
+    "kind": "uleb",
+    "value": 9487,
+    "hex": "8f4a"
+  },
+  {
+    "id": "vector_u16_1_2",
+    "kind": "type_serialize",
+    "type": "vector<u16>",
+    "value": [1, 2],
+    "hex": "0201000200"
+  },
+  {
+    "id": "fixed_u16_3",
+    "kind": "type_serialize",
+    "type": "fixed_array_3_u16",
+    "value": [1, 2, 3],
+    "hex": "010002000300"
+  },
+  {
+    "id": "utf8_string_sample",
+    "kind": "type_serialize",
+    "type": "string",
+    "value": "çå∞≠¢õß∂ƒ∫",
+    "hex": "18c3a7c3a5e2889ee289a0c2a2c3b5c39fe28882c692e288ab"
+  }
+]
