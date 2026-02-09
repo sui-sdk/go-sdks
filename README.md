@@ -108,7 +108,9 @@ func main() {
 ### `sui/grpc`
 
 - `SuiGrpcClient`/`GrpcCoreClient` style API surface
-- current implementation uses unified core transport and method mapping, exposed under grpc package path
+- unified core transport with two backends:
+  - default JSON-RPC transport (offline-safe)
+  - official `google.golang.org/grpc` transport enabled with `UseOfficialGRPC: true` and build tag `official_grpc`
 
 ### `sui/multisig`
 

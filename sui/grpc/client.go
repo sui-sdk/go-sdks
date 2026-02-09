@@ -2,42 +2,87 @@ package grpc
 
 import (
 	"context"
+	"time"
 
 	jsonrpc "github.com/sui-sdks/go-sdks/sui/jsonrpc"
 )
 
 type ClientOptions struct {
-	Network string
-	BaseURL string
-	RPC     *jsonrpc.Client
+	Network         string
+	BaseURL         string
+	RPC             *jsonrpc.Client
+	Transport       Transport
+	UseOfficialGRPC bool
+	GRPCMethodPath  string
+	Timeout         time.Duration
 }
 
 type Client struct {
-	network string
-	rpc     *jsonrpc.Client
-	Core    *CoreClient
+	network   string
+	rpc       *jsonrpc.Client // kept for backward compatibility when JSON-RPC transport is selected.
+	transport Transport
+	Core      *CoreClient
 }
 
 func NewClient(opts ClientOptions) (*Client, error) {
-	rpc := opts.RPC
-	if rpc == nil {
-		url := opts.BaseURL
-		if url == "" {
+	var (
+		rpc       = opts.RPC
+		transport = opts.Transport
+	)
+
+	if transport == nil {
+		if rpc != nil {
+			transport = NewJSONRPCTransport(rpc)
+		} else if shouldUseOfficialGRPC(opts) {
+			target := opts.BaseURL
+			if target == "" {
+				var err error
+				target, err = GetGrpcFullnodeURL(opts.Network)
+				if err != nil {
+					return nil, err
+				}
+			}
 			var err error
-			url, err = GetGrpcFullnodeURL(opts.Network)
+			transport, err = NewOfficialGRPCTransport(OfficialGRPCTransportOptions{
+				Target:     target,
+				MethodPath: opts.GRPCMethodPath,
+				Timeout:    opts.Timeout,
+			})
 			if err != nil {
 				return nil, err
 			}
-		}
-		var err error
-		rpc, err = jsonrpc.NewClient(jsonrpc.ClientOptions{Network: opts.Network, URL: url})
-		if err != nil {
-			return nil, err
+		} else {
+			url := opts.BaseURL
+			if url == "" {
+				var err error
+				url, err = GetGrpcFullnodeURL(opts.Network)
+				if err != nil {
+					return nil, err
+				}
+			}
+			var err error
+			rpc, err = jsonrpc.NewClient(jsonrpc.ClientOptions{Network: opts.Network, URL: url})
+			if err != nil {
+				return nil, err
+			}
+			transport = NewJSONRPCTransport(rpc)
 		}
 	}
-	c := &Client{network: opts.Network, rpc: rpc}
+
+	c := &Client{network: opts.Network, rpc: rpc, transport: transport}
 	c.Core = NewCoreClient(CoreClientOptions{Client: c})
 	return c, nil
+}
+
+func shouldUseOfficialGRPC(opts ClientOptions) bool {
+	return opts.UseOfficialGRPC
+}
+
+func (c *Client) Close() error {
+	if c.transport == nil {
+		return nil
+	}
+	return c.transport.Close()
 }
 
 func (c *Client) Network() string { return c.network }

@@ -34,7 +34,7 @@ Status: **~80-90% functional parity** for common runtime use.
 Implemented:
 
 - `jsonRpc` client + transport + common method set
-- `grpc` package surface + core client mapping
+- `grpc` package surface + core client mapping + pluggable transport (default JSON-RPC, optional official google gRPC)
 - `graphql` client
 - `faucet` helper
 - `cryptography` base module (intent/signature/public key/keypair helpers)
@@ -51,7 +51,7 @@ Implemented:
 
 Major missing modules (TS has many):
 
-- full protobuf-native `grpc` service/type parity
+- full generated protobuf-native `grpc` service/type parity (transport path already uses official google gRPC when built with `official_grpc`)
 - strict transaction wire-level parity (current serializer/executor is baseline-compatible, not full TS internal parity)
 - passkey keypair
 - rich typed RPC schemas and converters
@@ -62,7 +62,7 @@ Notes:
 
 - `secp256k1` currently runs in a stdlib-compatible ECDSA mode to keep zero external dependencies.
 - For strict secp256k1 compatibility with TS/noble vectors, a dedicated secp256k1 implementation is still required.
-- `grpc` module currently maps through unified core method calls; generated protobuf types/services parity is still pending.
+- `grpc` module now supports optional official google gRPC transport (build tag `official_grpc`, `UseOfficialGRPC: true`), while generated protobuf typed services parity is still pending.
 
 ### 3) `@mysten/walrus`
 
