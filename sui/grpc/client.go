@@ -12,7 +12,6 @@ type ClientOptions struct {
 	BaseURL         string
 	RPC             *jsonrpc.Client
 	Transport       Transport
-	UseOfficialGRPC bool
 	GRPCMethodPath  string
 	Timeout         time.Duration
 }
@@ -33,7 +32,7 @@ func NewClient(opts ClientOptions) (*Client, error) {
 	if transport == nil {
 		if rpc != nil {
 			transport = NewJSONRPCTransport(rpc)
-		} else if shouldUseOfficialGRPC(opts) {
+		} else {
 			target := opts.BaseURL
 			if target == "" {
 				var err error
@@ -51,31 +50,12 @@ func NewClient(opts ClientOptions) (*Client, error) {
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			url := opts.BaseURL
-			if url == "" {
-				var err error
-				url, err = GetGrpcFullnodeURL(opts.Network)
-				if err != nil {
-					return nil, err
-				}
-			}
-			var err error
-			rpc, err = jsonrpc.NewClient(jsonrpc.ClientOptions{Network: opts.Network, URL: url})
-			if err != nil {
-				return nil, err
-			}
-			transport = NewJSONRPCTransport(rpc)
 		}
 	}
 
 	c := &Client{network: opts.Network, rpc: rpc, transport: transport}
 	c.Core = NewCoreClient(CoreClientOptions{Client: c})
 	return c, nil
-}
-
-func shouldUseOfficialGRPC(opts ClientOptions) bool {
-	return opts.UseOfficialGRPC
 }
 
 func (c *Client) Close() error {

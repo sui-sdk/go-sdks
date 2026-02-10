@@ -1,5 +1,3 @@
-//go:build official_grpc
-
 package grpc
 
 import (
@@ -49,9 +47,8 @@ func TestOfficialGRPCTransportAndClient(t *testing.T) {
 	go func() { _ = srv.Serve(lis) }()
 
 	client, err := NewClient(ClientOptions{
-		Network:         "localnet",
-		BaseURL:         "http://" + lis.Addr().String(),
-		UseOfficialGRPC: true,
+		Network: "localnet",
+		BaseURL: "http://" + lis.Addr().String(),
 	})
 	if err != nil {
 		t.Fatalf("new client failed: %v", err)

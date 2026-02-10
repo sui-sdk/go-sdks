@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	jsonrpc "github.com/sui-sdks/go-sdks/sui/jsonrpc"
 )
 
-func TestGrpcClientCoreMethods(t *testing.T) {
+func TestGrpcClientCoreMethodsWithJSONRPCTransport(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&req)
@@ -29,7 +31,12 @@ func TestGrpcClientCoreMethods(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, err := NewClient(ClientOptions{Network: "testnet", BaseURL: srv.URL})
+	rpc, err := jsonrpc.NewClient(jsonrpc.ClientOptions{Network: "testnet", URL: srv.URL})
+	if err != nil {
+		t.Fatalf("new jsonrpc client failed: %v", err)
+	}
+
+	client, err := NewClient(ClientOptions{Network: "testnet", RPC: rpc})
 	if err != nil {
 		t.Fatalf("new client failed: %v", err)
 	}

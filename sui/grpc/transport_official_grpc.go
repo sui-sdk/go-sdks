@@ -1,5 +1,3 @@
-//go:build official_grpc
-
 package grpc
 
 import (
@@ -68,7 +66,18 @@ func NewOfficialGRPCTransport(opts OfficialGRPCTransportOptions) (Transport, err
 
 func (t *OfficialGRPCTransport) Call(ctx context.Context, method string, params []any, out any) error {
 	payload := map[string]any{"method": method, "params": params}
-	req, err := structpb.NewStruct(payload)
+
+	// Normalize concrete Go collection types (for example []string) into []any/map[string]any.
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal grpc request payload failed: %w", err)
+	}
+	var normalized map[string]any
+	if err := json.Unmarshal(b, &normalized); err != nil {
+		return fmt.Errorf("decode grpc request payload failed: %w", err)
+	}
+
+	req, err := structpb.NewStruct(normalized)
 	if err != nil {
 		return fmt.Errorf("build grpc request failed: %w", err)
 	}
@@ -98,7 +107,7 @@ func (t *OfficialGRPCTransport) Call(ctx context.Context, method string, params 
 	if out == nil {
 		return nil
 	}
-	b, err := json.Marshal(result)
+	b, err = json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("marshal grpc result failed: %w", err)
 	}

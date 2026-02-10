@@ -108,9 +108,8 @@ func main() {
 ### `sui/grpc`
 
 - `SuiGrpcClient`/`GrpcCoreClient` style API surface
-- unified core transport with two backends:
-  - default JSON-RPC transport (offline-safe)
-  - official `google.golang.org/grpc` transport enabled with `UseOfficialGRPC: true` and build tag `official_grpc`
+- official `google.golang.org/grpc` as the default core transport
+- optional custom `Transport` / JSON-RPC client injection for compatibility paths
 
 ### `sui/multisig`
 
@@ -194,6 +193,24 @@ Run:
 
 ```bash
 go test ./...
+```
+
+Real fullnode PTB integration tests (`sui/transactions/ptb_fullnode_integration_test.go`) are opt-in:
+
+```bash
+SUI_IT_ENABLE_FULLNODE=1 \
+SUI_IT_NETWORK=testnet \
+go test ./sui/transactions -run TestPTBFullnodeIntegrationResolveBuild -v
+```
+
+Optional sign+execute integration test:
+
+```bash
+SUI_IT_ENABLE_FULLNODE=1 \
+SUI_IT_ENABLE_EXECUTE=1 \
+SUI_IT_NETWORK=testnet \
+SUI_IT_PRIVATE_KEY='suiprivkey:...' \
+go test ./sui/transactions -run TestPTBFullnodeIntegrationSignAndExecute -v
 ```
 
 ## Parity Status (Important)

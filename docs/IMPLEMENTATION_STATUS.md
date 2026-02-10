@@ -51,7 +51,7 @@ Implemented:
 
 Major missing modules (TS has many):
 
-- full generated protobuf-native `grpc` service/type parity (transport path already uses official google gRPC when built with `official_grpc`)
+- full generated protobuf-native `grpc` service/type parity (core transport now uses official `google.golang.org/grpc` by default)
 - strict transaction wire-level parity (current serializer/executor is baseline-compatible, not full TS internal parity)
 - passkey keypair
 - rich typed RPC schemas and converters
@@ -62,7 +62,7 @@ Notes:
 
 - `secp256k1` currently runs in a stdlib-compatible ECDSA mode to keep zero external dependencies.
 - For strict secp256k1 compatibility with TS/noble vectors, a dedicated secp256k1 implementation is still required.
-- `grpc` module now supports optional official google gRPC transport (build tag `official_grpc`, `UseOfficialGRPC: true`), while generated protobuf typed services parity is still pending.
+- `grpc` module now uses official google gRPC as default transport, while generated protobuf typed services parity is still pending.
 
 ### 3) `@mysten/walrus`
 
